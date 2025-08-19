@@ -1,3 +1,5 @@
-# maxim
+# mxmknc
 
-// TODO about me
+Frontend разработчик, СПб
+
+https://maximkacanuk.ru/
