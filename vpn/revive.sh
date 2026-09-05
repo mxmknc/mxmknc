@@ -25,7 +25,12 @@ listen_udp() { ss -ulnp 2>/dev/null | grep -qE "[:.]${1}[[:space:]]"; }
 hdr "1. РЕСУРСЫ (частая причина «всё легло»)"
 DISK_PCT=$(df --output=pcent / 2>/dev/null | tail -1 | tr -dc '0-9')
 echo "  диск /: ${DISK_PCT}% занято"
-[ "${DISK_PCT:-0}" -ge 95 ] && err "ДИСК ЗАБИТ — контейнеры/сервисы не стартуют. Чистим docker: docker system prune -af"
+if [ "${DISK_PCT:-0}" -ge 95 ]; then
+  err "ДИСК ЗАБИТ — именно поэтому docker и контейнеры не стартуют."
+  warn "НЕ запускай 'docker system prune -a' — он удалит остановленные контейнеры вместе с ключами VPN."
+  echo "  Безопасная чистка + подъём контейнеров:"
+  echo "    bash <(curl -sSL https://raw.githubusercontent.com/mxmknc/mxmknc/claude/vpn-server-connection-issue-0tmmyo/vpn/freespace.sh)"
+fi
 free -m | sed 's/^/  /'
 if dmesg -T 2>/dev/null | grep -qiE "out of memory|oom-killer"; then
   err "в dmesg есть OOM — процессы убивало по памяти:"

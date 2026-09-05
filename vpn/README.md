@@ -6,6 +6,7 @@
 |---|---|---|
 | `diag.sh` | Собирает полную картину: порты, firewall, сервисы, контейнеры, логи, OOM | нет |
 | `revive.sh` | Поднимает то, что уже настроено, но лежит (docker, контейнеры, systemd-юниты, форвардинг, правила ufw) | да, аккуратно |
+| `freespace.sh` | Освобождает забитый диск и поднимает Docker. Не удаляет ни контейнеры, ни volume'ы, ни образы — ключи VPN остаются, старые клиентские конфиги продолжают работать | да, чистит только мусор |
 | `setup.sh` | Ставит с нуля Xray VLESS+REALITY (TCP/443) и AmneziaWG (UDP), выдаёт ссылку и QR | да, ставит пакеты |
 
 ## Порядок действий
@@ -13,6 +14,9 @@
 ```bash
 # 1. Понять, что происходит (ничего не ломает)
 bash <(curl -sSL https://raw.githubusercontent.com/mxmknc/mxmknc/claude/vpn-server-connection-issue-0tmmyo/vpn/diag.sh)
+
+# 1a. Если diag показал диск на 95-100% — сначала это (сохраняет все конфиги)
+bash <(curl -sSL https://raw.githubusercontent.com/mxmknc/mxmknc/claude/vpn-server-connection-issue-0tmmyo/vpn/freespace.sh)
 
 # 2. Попробовать поднять существующую конфигурацию
 bash <(curl -sSL https://raw.githubusercontent.com/mxmknc/mxmknc/claude/vpn-server-connection-issue-0tmmyo/vpn/revive.sh)
@@ -26,6 +30,22 @@ bash <(curl -sSL https://raw.githubusercontent.com/mxmknc/mxmknc/claude/vpn-serv
 ```bash
 AWG_PORT=51820 XRAY_PORT=8443 bash revive.sh
 ```
+
+## Про забитый диск
+
+Никогда не чини это через `docker system prune -a`. Он удаляет остановленные контейнеры,
+а у AmneziaVPN именно в них лежат ключи и настройки — все выданные клиентам конфиги
+после такой «чистки» станут мусором.
+
+`freespace.sh` трогает только то, что заведомо одноразовое:
+
+* json-логи контейнеров (обнуляются через `truncate` прямо на диске — работает даже когда
+  демон Docker не может стартовать из-за нехватки места);
+* журнал systemd, ротированные логи в `/var/log`, кэш apt, `/tmp`, core-дампы, старые ядра.
+
+Контейнеры, volume'ы, образы и `/etc` не затрагиваются. Заодно скрипт включает ротацию
+логов Docker (10 МБ x 3 на контейнер), чтобы диск не забился снова, и ставит контейнерам
+`restart=unless-stopped`, чтобы они переживали перезагрузку.
 
 ## setup.sh
 
