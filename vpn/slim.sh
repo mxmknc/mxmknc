@@ -67,7 +67,11 @@ hdr "2. СТАРЫЕ ЯДРА"
 CUR=$(uname -r)
 echo "  работающее ядро: $CUR"
 INSTALLED=$(dpkg -l 'linux-image-[0-9]*' 'linux-modules-[0-9]*' 'linux-headers-[0-9]*' 2>/dev/null | awk '/^ii/{print $2}')
-OLD=$(echo "$INSTALLED" | grep -v "$CUR" | grep -vE 'linux-(image|headers|modules)-(generic|virtual)$')
+# Пакет заголовков зовётся linux-headers-5.15.0-153, без суффикса -generic,
+# поэтому сверяемся и с полной версией ядра, и с усечённой — иначе заголовки
+# работающего ядра попадают под удаление (ломает сборку DKMS-модулей).
+CURV=${CUR%-generic}
+OLD=$(echo "$INSTALLED" | grep -v "$CUR" | grep -v "$CURV" | grep -vE 'linux-(image|headers|modules)-(generic|virtual)$')
 if [ -n "$OLD" ]; then
   echo "  под удаление:"; echo "$OLD" | sed 's/^/    /'
   # shellcheck disable=SC2086
