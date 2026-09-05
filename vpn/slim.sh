@@ -85,19 +85,34 @@ echo "  /usr/lib/firmware занимает: $(mb "$FW") МБ"
 echo "  Это прошивки Wi-Fi-адаптеров, видеокарт и RAID-контроллеров."
 echo "  Внутри KVM-виртуалки физических устройств нет, и они не загружаются никогда."
 if [ "$DO_FIRMWARE" = 1 ]; then
+  # За linux-firmware цепляется только метапакет linux-image-generic.
+  # linux-image-virtual — облегчённый метапакет ровно для виртуалок — от прошивок
+  # не зависит, поэтому сначала ставим его: канал обновлений ядра остаётся живым.
+  inf "ставлю linux-image-virtual, чтобы обновления ядра продолжали приходить"
+  act "apt-get update -qq"
+  if [ "$DRY" = 0 ]; then
+    apt-get install -y -qq linux-image-virtual linux-headers-virtual >/dev/null 2>&1
+    if ! dpkg -l linux-image-virtual 2>/dev/null | grep -q '^ii'; then
+      err "linux-image-virtual не установился — не рискую сносить firmware."
+      echo "  Проверь сеть и apt, потом запусти снова с --firmware."
+      DO_FIRMWARE=0
+    else
+      ok "linux-image-virtual установлен"
+    fi
+  fi
+fi
+if [ "$DO_FIRMWARE" = 1 ]; then
   SIM=$(apt-get -s purge linux-firmware 2>/dev/null)
-  if echo "$SIM" | grep -qE '^Remv linux-image-[0-9]'; then
-    err "apt хочет снести вместе с firmware и само ядро — отказываюсь."
+  if echo "$SIM" | grep -qE '^Remv linux-image-[0-9]|^Remv linux-image-virtual|^Remv linux-modules-[0-9]'; then
+    err "apt хочет снести вместе с прошивками ядро или linux-image-virtual — отказываюсь."
     echo "$SIM" | grep '^Remv' | sed 's/^/    /'
   else
-    warn "побочный эффект: пакет linux-image-generic зависит от linux-firmware,"
-    warn "поэтому уедет и метапакет. Установленное ядро ($CUR) останется и будет"
-    warn "работать, но новые версии ядра перестанут приезжать сами — обновлять"
-    warn "придётся вручную: apt install linux-image-virtual"
     echo "  будет удалено:"; echo "$SIM" | grep '^Remv' | sed 's/^/    /'
+    echo "  (linux-image-generic уезжает вместе с прошивками — его роль забирает"
+    echo "   linux-image-virtual, так что новые ядра продолжат ставиться сами)"
     act "apt-get -y purge linux-firmware"
     act "rm -rf /usr/lib/firmware /lib/firmware"
-    ok "linux-firmware удалён"
+    ok "linux-firmware удалён, обновления ядра сохранены"
   fi
 else
   inf "пропущено. Чтобы удалить: перезапусти с флагом --firmware"
